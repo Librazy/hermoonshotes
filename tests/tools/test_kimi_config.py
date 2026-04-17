@@ -59,7 +59,7 @@ class TestKimiToolsConfig:
         """Test applying no prefix."""
         config = KimiToolsConfig()
         with patch.dict(os.environ, {"KIMI_TOOLS_PREFIX": "none"}):
-            assert config.apply_prefix("web_search") == "web_search"
+            assert config.apply_prefix("web_search") == "web_search_kimi"
             assert config.apply_prefix("fetch") == "fetch"
     
     def test_apply_prefix_with_custom(self):
@@ -85,13 +85,14 @@ class TestSystemPrompt:
         assert "brief" in DEFAULT_SYSTEM_PROMPTS
         assert "structured" in DEFAULT_SYSTEM_PROMPTS
         assert "academic" in DEFAULT_SYSTEM_PROMPTS
+        assert "markdown" in DEFAULT_SYSTEM_PROMPTS
     
     def test_get_system_prompt_default(self):
         """Test getting default system prompt."""
         config = KimiToolsConfig()
         with patch.dict(os.environ, {}, clear=True):
-            prompt = config.get_system_prompt("detailed")
-            assert prompt == DEFAULT_SYSTEM_PROMPTS["detailed"]
+            prompt = config.get_system_prompt("structured")
+            assert prompt == DEFAULT_SYSTEM_PROMPTS["structured"]
     
     def test_get_system_prompt_from_env(self):
         """Test getting system prompt from environment variable."""
@@ -209,7 +210,7 @@ class TestConvenienceFunctions:
         """Test get_prefixed_name with no prefix."""
         with patch.dict(os.environ, {"KIMI_TOOLS_PREFIX": "none"}):
             get_config().clear_cache()
-            assert get_prefixed_name("web_search") == "web_search"
+            assert get_prefixed_name("web_search") == "web_search_kimi"
     
     def test_get_system_prompt_convenience(self):
         """Test get_system_prompt convenience function."""

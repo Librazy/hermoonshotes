@@ -14,27 +14,74 @@ logger = logging.getLogger(__name__)
 
 # Default system prompts for different output formats
 DEFAULT_SYSTEM_PROMPTS = {
-    "detailed": """你是 Kimi，具有联网搜索能力的 AI 助手。
+    "detailed": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.
 
-当使用 $web_search 工具搜索后，按以下格式输出：
+```makrdown
+# [Search Result Title 1](url-of-search-result-1)
 
-## 搜索结果摘要
-[2-3句话概括核心内容]
+> Summary of Search Result 1
 
-## 详细信息
-[详细回答，包含具体数据]
+* Detailed Search Result 1, paragraph 1
+* Detailed Search Result 1, paragraph 2
 
-## 引用来源
-- [标题](URL)
-- [标题](URL)
+---
 
-保持回答在500字以内。""",
+# [<Search Result Title 2>](url-of-search-result-2)
 
-    "brief": """你是 Kimi。搜索后给出1-2句话的简短回答，并列出主要来源URL。""",
+> Summary of Search Result 2
 
-    "structured": """你是 Kimi。搜索后用 markdown 表格呈现关键数据。""",
+* Detailed Search Result 2, paragraph 1
+* Detailed Search Result 2, paragraph 2
+* Detailed Search Result 2, paragraph 3
+```""",
 
-    "academic": """你是 Kimi。搜索后以学术格式输出，使用 APA 引用格式。"""
+    "brief": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a concise answer with sources, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.""",
+
+    "markdown": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured markdown document with the search results and links, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.""",
+
+    "structured": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured json strictly following the json schema, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.
+---
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "array",
+  "description": "List of search results",
+  "items": {
+    "type": "object",
+    "description": "Single search result item",
+    "properties": {
+      "index": {
+        "type": "integer",
+        "description": "Index number of the search result",
+        "minimum": 0
+      },
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "description": "URL of the search result"
+      },
+      "title": {
+        "type": "string",
+        "description": "Title of the search result"
+      },
+      "content": {
+        "type": "array",
+        "description": "Detailed content text of the search result",
+        "items": {
+          "type": "string",
+          "description": "Content text fragment"
+        },
+        "minItems": 0
+      }
+    },
+    "required": ["index", "url", "title", "content"],
+    "additionalProperties": false
+  }
+}
+```
+""",
+
+    "academic": """You are a `$web_search` tool agent. Provide an academic answer with APA citations, and DO NOT ADD YOUR OWN OPINION OR THOUGHTS.""",
 }
 
 
@@ -57,6 +104,7 @@ class KimiToolsConfig:
     # Default prefix options
     PREFIX_KIMI = "kimi_"      # Default: kimi_web_search, kimi_fetch, etc.
     PREFIX_NONE = ""           # No prefix: web_search, fetch, etc.
+    SEARCH_FALLBACK_NAME = "web_search_kimi"
     
     def __init__(self):
         self._config_cache: Optional[Dict[str, Any]] = None
@@ -125,7 +173,7 @@ class KimiToolsConfig:
             return ""
         
         return prefix
-    
+
     def apply_prefix(self, name: str) -> str:
         """Apply prefix to a tool name.
         
@@ -137,6 +185,11 @@ class KimiToolsConfig:
         """
         prefix = self.get_prefix()
         if not prefix:
+            if name == "web_search":
+                # Hermes already has a built-in ``web_search`` tool, so keep
+                # unprefixed names for safe tools and use a collision-free
+                # fallback name for Moonshot search.
+                return self.SEARCH_FALLBACK_NAME
             return name
         
         # Ensure prefix ends with underscore if not empty
@@ -149,7 +202,7 @@ class KimiToolsConfig:
         
         return prefix + name
     
-    def get_system_prompt(self, format_style: str = "detailed") -> str:
+    def get_system_prompt(self, format_style: str = "structured") -> str:
         """Get system prompt for search.
         
         Priority (highest to lowest):
@@ -160,8 +213,8 @@ class KimiToolsConfig:
         5. Default prompts
         
         Args:
-            format_style: Output format style (detailed, brief, structured, academic)
-            
+            format_style: Output format style (detailed, brief, markdown, structured, academic)
+
         Returns:
             System prompt string
         """
@@ -215,7 +268,7 @@ class KimiToolsConfig:
         if format_style in DEFAULT_SYSTEM_PROMPTS:
             return DEFAULT_SYSTEM_PROMPTS[format_style]
         
-        return DEFAULT_SYSTEM_PROMPTS["detailed"]
+        return DEFAULT_SYSTEM_PROMPTS["structured"]
     
     def get_available_format_styles(self) -> List[str]:
         """Get list of available format styles.

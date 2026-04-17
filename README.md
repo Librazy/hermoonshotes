@@ -62,7 +62,7 @@ A Hermes Agent plugin providing web search and formula tools powered by Moonshot
 The prefix controls how tools are named when registered:
 
 - **`kimi`** (default): Tools are named `kimi_web_search`, `kimi_fetch`, etc.
-- **`none`**: Tools have no prefix: `web_search`, `fetch`, etc.
+- **`none`**: Safe tools have no prefix, while search falls back to `web_search_kimi`: `web_search_kimi`, `fetch`, etc.
 - **Custom**: Any custom prefix: e.g., `my_` produces `my_web_search`, `my_fetch`, etc.
 
 Examples:
@@ -73,7 +73,7 @@ export KIMI_TOOLS_PREFIX="kimi"
 
 # No prefix
 export KIMI_TOOLS_PREFIX="none"
-# Tools: web_search, fetch, convert, ...
+# Tools: web_search_kimi, fetch, convert, ...
 
 # Custom prefix
 export KIMI_TOOLS_PREFIX="my"
@@ -87,6 +87,7 @@ export KIMI_TOOLS_PREFIX="my"
 | `KIMI_TOOLS_SYSTEM_PROMPT` | Direct custom system prompt string |
 | `KIMI_TOOLS_SYSTEM_PROMPT_FILE` | Path to file containing custom system prompt |
 | `KIMI_TOOLS_CONFIG_FILE` | Path to JSON configuration file |
+| `KIMI_TOOLS_VERBOSE` | Save JSON tool transcripts under `sessions/moonshot` |
 
 The system prompt controls how the search results are formatted. You can override the default prompts:
 
@@ -99,6 +100,12 @@ export KIMI_TOOLS_SYSTEM_PROMPT_FILE="/path/to/prompt.txt"
 
 # Or use one of the built-in format styles via the tool parameter
 # format_style: detailed | brief | structured | academic
+
+# Save transcripts for every Moonshot tool call
+export KIMI_TOOLS_VERBOSE="all"
+
+# Or only save selected unprefixed tool names
+export KIMI_TOOLS_VERBOSE="web_search,fetch,date"
 ```
 
 #### Config File
@@ -161,7 +168,7 @@ hermes chat -q "kimi_code_runner: print([x**2 for x in range(10)])"
 
 With custom prefix (e.g., `KIMI_TOOLS_PREFIX=none`):
 ```bash
-hermes chat -q "web_search: latest AI news"
+hermes chat -q "web_search_kimi: latest AI news"
 hermes chat -q "fetch: https://example.com"
 ```
 

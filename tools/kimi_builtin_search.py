@@ -1,16 +1,18 @@
-"""Kimi Builtin Web Search - Native $web_search implementation."""
+"""Kimi Builtin Web Search - Native ``$web_search`` implementation."""
 
 import json
-import os
 import logging
+import os
 from typing import Any, Dict, List, Optional
+
 import httpx
 
-from tools.kimi_config import get_config, DEFAULT_SYSTEM_PROMPTS
+from .kimi_config import DEFAULT_SYSTEM_PROMPTS, get_config
+from .kimi_transcript import save_tool_transcript
 
 logger = logging.getLogger(__name__)
 
-KIMI_BASE_URL = os.getenv("KIMI_BASE_URL", "https://api.moonshot.cn/v1")
+DEFAULT_BASE_URL = "https://api.moonshot.cn/v1"
 
 
 def check_kimi_search_available() -> bool:
@@ -26,12 +28,12 @@ def _resolve_api_key() -> Optional[str]:
 def _build_kimi_client(api_key: str) -> httpx.Client:
     """Build HTTP client with auth headers."""
     return httpx.Client(
-        base_url=KIMI_BASE_URL,
+        base_url=os.getenv("KIMI_BASE_URL") or os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         },
-        timeout=60.0
+        timeout=120.0
     )
 
 
@@ -39,7 +41,8 @@ def _execute_search_loop(
     client: httpx.Client,
     messages: List[Dict[str, Any]],
     model: str,
-    max_rounds: int = 3
+    max_rounds: int = 3,
+    transcript_rounds: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Execute the search tool call loop.
@@ -59,11 +62,19 @@ def _execute_search_loop(
             }],
             "thinking": {"type": "disabled"}
         }
-        
+
         try:
             response = client.post("/chat/completions", json=payload)
             response.raise_for_status()
             data = response.json()
+            if transcript_rounds is not None:
+                transcript_rounds.append(
+                    {
+                        "round": round_num + 1,
+                        "request": payload,
+                        "response": data,
+                    }
+                )
             
             choice = data.get("choices", [{}])[0]
             finish_reason = choice.get("finish_reason")
@@ -74,7 +85,6 @@ def _execute_search_loop(
                 return {
                     "content": message.get("content", ""),
                     "finish_reason": finish_reason,
-                    "search_results": data.get("search_results", []),
                     "usage": data.get("usage", {})
                 }
             
@@ -84,21 +94,7 @@ def _execute_search_loop(
                 return {"error": "Expected tool_calls but none found"}
             
             # Add assistant message with tool_calls
-            messages.append({
-                "role": "assistant",
-                "content": message.get("content", ""),
-                "tool_calls": [
-                    {
-                        "id": tc.get("id"),
-                        "type": "function",
-                        "function": {
-                            "name": tc.get("function", {}).get("name"),
-                            "arguments": tc.get("function", {}).get("arguments", "{}")
-                        }
-                    }
-                    for tc in tool_calls
-                ]
-            })
+            messages.append(message)
             
             # Add tool responses (echo arguments back)
             for tc in tool_calls:
@@ -110,22 +106,36 @@ def _execute_search_loop(
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc_id,
-                        "name": func_name,
                         "content": arguments  # Echo back for Kimi to execute
                     })
                 else:
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc_id,
-                        "name": func_name,
                         "content": json.dumps({"error": f"Unknown tool: {func_name}"})
                     })
             
         except httpx.HTTPError as e:
             logger.error(f"HTTP error in round {round_num}: {e}")
+            if transcript_rounds is not None:
+                transcript_rounds.append(
+                    {
+                        "round": round_num + 1,
+                        "request": payload,
+                        "error": f"HTTP error: {e}",
+                    }
+                )
             return {"error": f"HTTP error: {e}"}
         except Exception as e:
             logger.error(f"Error in round {round_num}: {e}")
+            if transcript_rounds is not None:
+                transcript_rounds.append(
+                    {
+                        "round": round_num + 1,
+                        "request": payload,
+                        "error": str(e),
+                    }
+                )
             return {"error": str(e)}
     
     return {"error": "Max rounds exceeded without final answer"}
@@ -135,7 +145,8 @@ def kimi_builtin_search(
     query: str,
     model: str = "kimi-k2.5",
     format_style: str = "detailed",
-    system_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None,
+    task_id: Optional[str] = None,
 ) -> str:
     """
     Execute Kimi builtin web search.
@@ -167,30 +178,72 @@ def kimi_builtin_search(
         {"role": "system", "content": final_prompt},
         {"role": "user", "content": query}
     ]
+    transcript_rounds: List[Dict[str, Any]] = []
     
     try:
         with _build_kimi_client(api_key) as client:
-            result = _execute_search_loop(client, messages, model)
+            result = _execute_search_loop(
+                client,
+                messages,
+                model,
+                transcript_rounds=transcript_rounds,
+            )
             
             if "error" in result:
+                save_tool_transcript(
+                    "web_search",
+                    _get_schema_name(),
+                    {
+                        "query": query,
+                        "model": model,
+                        "format_style": format_style,
+                        "system_prompt": final_prompt,
+                    },
+                    result,
+                    task_id=task_id,
+                    metadata={"rounds": transcript_rounds},
+                )
                 return json.dumps(result)
             
             # Format output
             output = {
                 "query": query,
                 "content": result.get("content", ""),
-                "sources": [
-                    {"title": sr.get("title"), "url": sr.get("url")}
-                    for sr in result.get("search_results", [])
-                ],
                 "usage": result.get("usage", {})
             }
+            save_tool_transcript(
+                "web_search",
+                _get_schema_name(),
+                {
+                    "query": query,
+                    "model": model,
+                    "format_style": format_style,
+                    "system_prompt": final_prompt,
+                },
+                output,
+                task_id=task_id,
+                metadata={"rounds": transcript_rounds},
+            )
             
-            return json.dumps(output)
+            return result.get("content", "")
             
     except Exception as e:
         logger.error(f"Search failed: {e}")
-        return json.dumps({"error": str(e)})
+        error_payload = {"error": str(e)}
+        save_tool_transcript(
+            "web_search",
+            _get_schema_name(),
+            {
+                "query": query,
+                "model": model,
+                "format_style": format_style,
+                "system_prompt": final_prompt,
+            },
+            error_payload,
+            task_id=task_id,
+            metadata={"rounds": transcript_rounds},
+        )
+        return json.dumps(error_payload)
 
 
 def _get_schema_name() -> str:
@@ -219,7 +272,7 @@ def _get_schema() -> Dict[str, Any]:
                 },
                 "format_style": {
                     "type": "string",
-                    "enum": ["detailed", "brief", "structured", "academic"],
+                    "enum": ["detailed", "brief", "markdown", "structured", "academic"],
                     "description": "Output format style",
                     "default": "detailed"
                 },
@@ -238,29 +291,20 @@ def _get_schema() -> Dict[str, Any]:
 KIMI_BUILTIN_SEARCH_SCHEMA = _get_schema()
 
 
-# --- Registration ---
-# Note: The registry import is placed at the end to avoid circular imports
-# when this module is imported during tool discovery.
-try:
-    from tools.registry import registry
-
-    _config = get_config()
-    _tool_name = KIMI_BUILTIN_SEARCH_SCHEMA["name"]
-
-    registry.register(
-        name=_tool_name,
-        toolset="web",
-        schema=KIMI_BUILTIN_SEARCH_SCHEMA,
-        handler=lambda args, **kw: kimi_builtin_search(
+def get_builtin_search_registration(toolset: str = "plugin_hermoonshotes_web") -> Dict[str, Any]:
+    """Return the registration payload used by the Hermes plugin entrypoint."""
+    schema = _get_schema()
+    return {
+        "name": schema["name"],
+        "toolset": toolset,
+        "schema": schema,
+        "handler": lambda args, **kw: kimi_builtin_search(
             query=args.get("query", ""),
             model=args.get("model", "kimi-k2.5"),
-            format_style=args.get("format_style", "detailed"),
-            system_prompt=args.get("system_prompt")
+            format_style=args.get("format_style", "structured"),
+            system_prompt=args.get("system_prompt"),
+            task_id=kw.get("task_id"),
         ),
-        check_fn=check_kimi_search_available,
-        requires_env=["MOONSHOT_API_KEY"],
-    )
-    logger.debug(f"Registered Kimi web search tool as: {_tool_name}")
-except ImportError:
-    # Registry not available during initial import (e.g., during testing)
-    pass
+        "check_fn": check_kimi_search_available,
+        "requires_env": ["MOONSHOT_API_KEY"],
+    }

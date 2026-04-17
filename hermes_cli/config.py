@@ -59,7 +59,7 @@ OPTIONAL_ENV_VARS = {
     },
     # Tool naming prefix configuration
     "KIMI_TOOLS_PREFIX": {
-        "description": "Tool name prefix (e.g., 'kimi' for kimi_web_search, 'none' for web_search, or custom)",
+        "description": "Tool name prefix (e.g., 'kimi' for kimi_web_search, 'none' for web_search_kimi + unprefixed helpers, or custom)",
         "prompt": "Tool name prefix (kimi/none/custom)",
         "default": "kimi",
         "tools": [
@@ -69,6 +69,20 @@ OPTIONAL_ENV_VARS = {
             "kimi_quickjs",
             "kimi_code_runner",
             "kimi_excel",
+            "kimi_base64",
+            "kimi_date"
+        ],
+        "password": False,
+    },
+    "KIMI_TOOLS_VERBOSE": {
+        "description": "Save Moonshot tool transcripts under sessions/moonshot. Use 1/true/all for all tools, or a comma-separated list of unprefixed tool names like web_search,fetch",
+        "prompt": "Transcript capture setting (optional)",
+        "default": None,
+        "tools": [
+            "kimi_web_search",
+            "kimi_fetch",
+            "kimi_convert",
+            "kimi_quickjs",
             "kimi_base64",
             "kimi_date"
         ],
