@@ -248,7 +248,7 @@ def _get_schema() -> Dict[str, Any]:
     name = _get_schema_name()
     return {
         "name": name,
-        "description": "Search the web using Kimi's native $web_search. Returns formatted results with citations.",
+        "description": "Search the web using Kimi by Moonshot. Returns synthesized answers formatted per request from Kimi's AI.",
         "parameters": {
             "type": "object",
             "properties": {
