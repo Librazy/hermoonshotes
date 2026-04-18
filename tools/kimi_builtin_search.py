@@ -4,11 +4,12 @@ import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 import httpx
 
 from .kimi_config import DEFAULT_SYSTEM_PROMPTS, get_config
-from .kimi_transcript import save_tool_transcript
+from .kimi_transcript import SearchTranscriptManager
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +43,27 @@ def _execute_search_loop(
     messages: List[Dict[str, Any]],
     model: str,
     max_rounds: int = 3,
-    transcript_rounds: Optional[List[Dict[str, Any]]] = None,
+    transcript_manager: Optional[SearchTranscriptManager] = None,
 ) -> Dict[str, Any]:
     """
     Execute the search tool call loop.
-    
+
     This handles the multi-turn conversation where Kimi:
     1. Requests the web_search tool
     2. We return the tool arguments
     3. Kimi executes search and returns formatted results
     """
+    # Track message count before each round's additions to identify new messages
+    # For round 0: new messages = messages[0:] (all messages)
+    # For round 1: new messages = messages[2:] (assistant + tool from round 0)
+    message_count_before_additions = 0
+
     for round_num in range(max_rounds):
+        # Log request with only the new messages added in this round
+        if transcript_manager is not None:
+            new_messages = messages[message_count_before_additions:]
+            transcript_manager.log_request(new_messages.copy())
+
         payload = {
             "model": model,
             "messages": messages,
@@ -67,19 +78,15 @@ def _execute_search_loop(
             response = client.post("/chat/completions", json=payload)
             response.raise_for_status()
             data = response.json()
-            if transcript_rounds is not None:
-                transcript_rounds.append(
-                    {
-                        "round": round_num + 1,
-                        "request": payload,
-                        "response": data,
-                    }
-                )
-            
+
+            # Log response
+            if transcript_manager is not None:
+                transcript_manager.log_response(data)
+
             choice = data.get("choices", [{}])[0]
             finish_reason = choice.get("finish_reason")
             message = choice.get("message", {})
-            
+
             # If not a tool call, we're done
             if finish_reason != "tool_calls":
                 return {
@@ -87,21 +94,26 @@ def _execute_search_loop(
                     "finish_reason": finish_reason,
                     "usage": data.get("usage", {})
                 }
-            
+
             # Handle tool calls - echo back arguments
             tool_calls = message.get("tool_calls", [])
             if not tool_calls:
                 return {"error": "Expected tool_calls but none found"}
-            
+
+            # Record the count before adding new messages
+            # These new messages (assistant + tool responses) will be logged
+            # as "new" in the next round's request transcription
+            message_count_before_additions = len(messages)
+
             # Add assistant message with tool_calls
             messages.append(message)
-            
+
             # Add tool responses (echo arguments back)
             for tc in tool_calls:
                 tc_id = tc.get("id")
                 func_name = tc.get("function", {}).get("name", "")
                 arguments = tc.get("function", {}).get("arguments", "{}")
-                
+
                 if func_name == "$web_search":
                     messages.append({
                         "role": "tool",
@@ -114,30 +126,27 @@ def _execute_search_loop(
                         "tool_call_id": tc_id,
                         "content": json.dumps({"error": f"Unknown tool: {func_name}"})
                     })
-            
+
         except httpx.HTTPError as e:
             logger.error(f"HTTP error in round {round_num}: {e}")
-            if transcript_rounds is not None:
-                transcript_rounds.append(
-                    {
-                        "round": round_num + 1,
-                        "request": payload,
-                        "error": f"HTTP error: {e}",
-                    }
+            # Log error response
+            if transcript_manager is not None:
+                transcript_manager.log_response(
+                    str(e),
+                    http_code=e.response.status_code if e.response else None,
+                    http_message=str(e),
                 )
             return {"error": f"HTTP error: {e}"}
         except Exception as e:
             logger.error(f"Error in round {round_num}: {e}")
-            if transcript_rounds is not None:
-                transcript_rounds.append(
-                    {
-                        "round": round_num + 1,
-                        "request": payload,
-                        "error": str(e),
-                    }
+            # Log error response
+            if transcript_manager is not None:
+                transcript_manager.log_response(
+                    str(e),
+                    http_message=str(e),
                 )
             return {"error": str(e)}
-    
+
     return {"error": "Max rounds exceeded without final answer"}
 
 
@@ -150,13 +159,13 @@ def kimi_builtin_search(
 ) -> str:
     """
     Execute Kimi builtin web search.
-    
+
     Args:
         query: Search query string
         model: Kimi model (default: kimi-k2.5)
         format_style: Output format (detailed|brief|structured|academic)
         system_prompt: Optional custom system prompt to override default
-    
+
     Returns:
         Plain text search result content on success, or JSON error payload on failure
     """
@@ -166,82 +175,57 @@ def kimi_builtin_search(
             "error": "Kimi API key not configured",
             "message": "Set MOONSHOT_API_KEY environment variable"
         })
-    
+
     # Get system prompt - parameter takes precedence over config
     if system_prompt:
         final_prompt = system_prompt
     else:
         config = get_config()
         final_prompt = config.get_system_prompt(format_style)
-    
+
     messages = [
         {"role": "system", "content": final_prompt},
         {"role": "user", "content": query}
     ]
-    transcript_rounds: List[Dict[str, Any]] = []
-    
+
+    # Create transcript manager for JSONL logging
+    session_id = str(uuid4())
+    tool_args = {
+        "query": query,
+        "model": model,
+        "format_style": format_style,
+        "system_prompt": final_prompt,
+    }
+    transcript_manager = SearchTranscriptManager(
+        tool_name="web_search",
+        registered_name=_get_schema_name(),
+        session_id=session_id,
+        tool_args=tool_args,
+        task_id=task_id,
+    )
+
     try:
         with _build_kimi_client(api_key) as client:
             result = _execute_search_loop(
                 client,
                 messages,
                 model,
-                transcript_rounds=transcript_rounds,
+                transcript_manager=transcript_manager,
             )
-            
+
             if "error" in result:
-                save_tool_transcript(
-                    "web_search",
-                    _get_schema_name(),
-                    {
-                        "query": query,
-                        "model": model,
-                        "format_style": format_style,
-                        "system_prompt": final_prompt,
-                    },
-                    result,
-                    task_id=task_id,
-                    metadata={"rounds": transcript_rounds},
-                )
                 return json.dumps(result)
-            
+
             # Format output
-            output = {
-                "query": query,
-                "content": result.get("content", ""),
-                "usage": result.get("usage", {})
-            }
-            save_tool_transcript(
-                "web_search",
-                _get_schema_name(),
-                {
-                    "query": query,
-                    "model": model,
-                    "format_style": format_style,
-                    "system_prompt": final_prompt,
-                },
-                output,
-                task_id=task_id,
-                metadata={"rounds": transcript_rounds},
-            )
-            
             return result.get("content", "")
-            
+
     except Exception as e:
         logger.error(f"Search failed: {e}")
         error_payload = {"error": str(e)}
-        save_tool_transcript(
-            "web_search",
-            _get_schema_name(),
-            {
-                "query": query,
-                "model": model,
-                "format_style": format_style,
-                "system_prompt": final_prompt,
-            },
-            error_payload,
-            task_id=task_id,
-            metadata={"rounds": transcript_rounds},
+        # Log exception response
+        transcript_manager.log_response(
+            str(e),
+            http_message=str(e),
         )
         return json.dumps(error_payload)
 
