@@ -37,23 +37,10 @@ class TestKimiBuiltinSearch:
         with patch.dict(os.environ, {}, clear=True):
             assert check_kimi_search_available() is False
     
-    def test_check_available_with_kimi_key(self):
-        """Tool available when KIMI_API_KEY is set."""
-        with patch.dict(os.environ, {"KIMI_API_KEY": "sk-kimi"}):
-            assert check_kimi_search_available() is True
-    
-    def test_resolve_api_key_priority(self):
-        """MOONSHOT_API_KEY takes priority over KIMI_API_KEY."""
-        with patch.dict(os.environ, {
-            "MOONSHOT_API_KEY": "sk-moonshot",
-            "KIMI_API_KEY": "sk-kimi"
-        }):
+    def test_resolve_api_key(self):
+        """Resolve API key from MOONSHOT_API_KEY."""
+        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-moonshot"}):
             assert _resolve_api_key() == "sk-moonshot"
-    
-    def test_resolve_api_key_fallback(self):
-        """Fallback to KIMI_API_KEY when MOONSHOT_API_KEY not set."""
-        with patch.dict(os.environ, {"KIMI_API_KEY": "sk-kimi"}):
-            assert _resolve_api_key() == "sk-kimi"
     
     def test_search_returns_error_without_key(self):
         """Search returns error JSON when no API key."""
@@ -61,7 +48,7 @@ class TestKimiBuiltinSearch:
             result = kimi_builtin_search("test query")
             data = json.loads(result)
             assert "error" in data
-            assert "MOONSHOT_API_KEY" in data.get("message", "")
+            assert data.get("message") == "Set MOONSHOT_API_KEY environment variable"
 
     @patch("httpx.Client.post")
     def test_search_success_flow(self, mock_post):
@@ -107,13 +94,7 @@ class TestKimiBuiltinSearch:
         
         with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
             result = kimi_builtin_search("test query")
-            data = json.loads(result)
-            
-            assert "content" in data
-            assert "sources" in data
-            assert "usage" in data
-            assert data["content"] == "Search results here"
-            assert len(data["sources"]) == 1
+            assert result == "Search results here"
 
     @patch("httpx.Client.post")
     def test_search_http_error(self, mock_post):
@@ -351,11 +332,9 @@ class TestIntegration:
     def test_live_builtin_search(self):
         """Test real search API call."""
         result = kimi_builtin_search("What is the capital of France?")
-        data = json.loads(result)
-        
-        assert "error" not in data
-        assert "Paris" in data.get("content", "")
-        assert len(data.get("sources", [])) > 0
+
+        assert result
+        assert "Paris" in result
 
     @pytest.mark.slow
     @pytest.mark.skipif(

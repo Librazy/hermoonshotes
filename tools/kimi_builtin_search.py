@@ -17,18 +17,18 @@ DEFAULT_BASE_URL = "https://api.moonshot.cn/v1"
 
 def check_kimi_search_available() -> bool:
     """Check if Kimi API key is configured."""
-    return bool(os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY"))
+    return bool(os.getenv("MOONSHOT_API_KEY"))
 
 
 def _resolve_api_key() -> Optional[str]:
     """Resolve API key from environment."""
-    return os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY")
+    return os.getenv("MOONSHOT_API_KEY")
 
 
 def _build_kimi_client(api_key: str) -> httpx.Client:
     """Build HTTP client with auth headers."""
     return httpx.Client(
-        base_url=os.getenv("KIMI_BASE_URL") or os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
+        base_url=os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -158,13 +158,13 @@ def kimi_builtin_search(
         system_prompt: Optional custom system prompt to override default
     
     Returns:
-        JSON string with search results
+        Plain text search result content on success, or JSON error payload on failure
     """
     api_key = _resolve_api_key()
     if not api_key:
         return json.dumps({
             "error": "Kimi API key not configured",
-            "message": "Set MOONSHOT_API_KEY or KIMI_API_KEY environment variable"
+            "message": "Set MOONSHOT_API_KEY environment variable"
         })
     
     # Get system prompt - parameter takes precedence over config

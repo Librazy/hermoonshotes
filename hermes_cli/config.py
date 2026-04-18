@@ -25,25 +25,9 @@ OPTIONAL_ENV_VARS = {
         ],
         "password": True,
     },
-    "KIMI_API_KEY": {
-        "description": "Alternative Kimi API key (fallback to MOONSHOT_API_KEY)",
-        "prompt": "Kimi API key (alternative to MOONSHOT_API_KEY)",
-        "url": "https://platform.moonshot.cn/",
-        "tools": [
-            "kimi_web_search",
-            "kimi_fetch",
-            "kimi_convert",
-            "kimi_quickjs",
-            "kimi_code_runner",
-            "kimi_excel",
-            "kimi_base64",
-            "kimi_date"
-        ],
-        "password": True,
-    },
-    "KIMI_BASE_URL": {
-        "description": "Kimi API base URL override",
-        "prompt": "Kimi API base URL (optional)",
+    "MOONSHOT_BASE_URL": {
+        "description": "Moonshot API base URL override",
+        "prompt": "Moonshot API base URL (optional)",
         "default": "https://api.moonshot.cn/v1",
         "tools": [
             "kimi_web_search",

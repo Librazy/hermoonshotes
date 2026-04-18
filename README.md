@@ -37,8 +37,6 @@ A Hermes Agent plugin providing web search and formula tools powered by Moonshot
 3. Set up your API key:
    ```bash
    export MOONSHOT_API_KEY="sk-..."
-   # or
-   export KIMI_API_KEY="sk-..."
    ```
 
 ## Configuration
@@ -49,9 +47,8 @@ A Hermes Agent plugin providing web search and formula tools powered by Moonshot
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `MOONSHOT_API_KEY` | Primary API key for Moonshot/Kimi | Yes (or `KIMI_API_KEY`) |
-| `KIMI_API_KEY` | Alternative API key | Yes (or `MOONSHOT_API_KEY`) |
-| `KIMI_BASE_URL` | API base URL override | No (default: https://api.moonshot.cn/v1) |
+| `MOONSHOT_API_KEY` | API key for Moonshot/Kimi | Yes |
+| `MOONSHOT_BASE_URL` | API base URL override | No (default: https://api.moonshot.cn/v1) |
 
 #### Tool Naming Prefix Configuration
 
@@ -177,16 +174,13 @@ hermes chat -q "fetch: https://example.com"
 ```python
 from tools.kimi_builtin_search import kimi_builtin_search
 from tools.kimi_config import get_config
-import json
 
 # Search with default config
 result = kimi_builtin_search(
     query="machine learning trends 2024",
     format_style="structured"
 )
-data = json.loads(result)
-print(data["content"])
-print(data["sources"])
+print(result)
 
 # Search with custom system prompt
 result = kimi_builtin_search(
@@ -317,7 +311,7 @@ kimi_date_tool(operation: str = "now", format: str = "iso") -> str
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| "API key not configured" | Missing env var | Set `MOONSHOT_API_KEY` or `KIMI_API_KEY` |
+| "API key not configured" | Missing env var | Set `MOONSHOT_API_KEY` |
 | "tool_calls not found" | Invalid request format | Check system prompt and thinking settings |
 | "Max rounds exceeded" | Loop detection failed | Check API response format |
 | Empty results | Search returned no hits | Try different query |

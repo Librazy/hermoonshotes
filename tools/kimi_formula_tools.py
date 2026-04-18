@@ -33,7 +33,7 @@ class KimiFormulaClient:
     def __init__(self, api_key: str, base_url: Optional[str] = None):
         self.api_key = api_key
         self.client = httpx.Client(
-            base_url=base_url or os.getenv("KIMI_BASE_URL") or os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
+            base_url=base_url or os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=60.0
         )
@@ -104,12 +104,12 @@ class KimiFormulaClient:
 
 def check_formula_tools_available() -> bool:
     """Check if API key is configured."""
-    return bool(os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY"))
+    return bool(os.getenv("MOONSHOT_API_KEY"))
 
 
 def _get_client() -> Optional[KimiFormulaClient]:
     """Get configured client."""
-    api_key = os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY")
+    api_key = os.getenv("MOONSHOT_API_KEY")
     if not api_key:
         return None
     return KimiFormulaClient(api_key)
