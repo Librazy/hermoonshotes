@@ -1,8 +1,6 @@
 name: hermoonshotes
 version: "1.0.0"
 description: Moonshot/Kimi web search and formula tools for Hermes.
-requires_env:
-  - MOONSHOT_API_KEY
 provides_tools:
   - kimi_web_search
   - kimi_fetch

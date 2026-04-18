@@ -2,34 +2,40 @@
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import httpx
 
+from .kimi_api_config import resolve_api_config
 from .kimi_config import DEFAULT_SYSTEM_PROMPTS, get_config
 from .kimi_transcript import SearchTranscriptManager
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL = "https://api.moonshot.cn/v1"
-
 
 def check_kimi_search_available() -> bool:
     """Check if Kimi API key is configured."""
-    return bool(os.getenv("MOONSHOT_API_KEY"))
+    api_key, base_url, warning = resolve_api_config()
+    return api_key is not None and base_url is not None and warning is None
 
 
 def _resolve_api_key() -> Optional[str]:
     """Resolve API key from environment."""
-    return os.getenv("MOONSHOT_API_KEY")
+    api_key, _, _ = resolve_api_config()
+    return api_key
 
 
-def _build_kimi_client(api_key: str) -> httpx.Client:
+def _resolve_base_url() -> Optional[str]:
+    """Resolve base URL from environment."""
+    _, base_url, _ = resolve_api_config()
+    return base_url
+
+
+def _build_kimi_client(api_key: str, base_url: str) -> httpx.Client:
     """Build HTTP client with auth headers."""
     return httpx.Client(
-        base_url=os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
+        base_url=base_url,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -170,10 +176,11 @@ def kimi_builtin_search(
         Plain text search result content on success, or JSON error payload on failure
     """
     api_key = _resolve_api_key()
-    if not api_key:
+    base_url = _resolve_base_url()
+    if not api_key or not base_url:
         return json.dumps({
             "error": "Kimi API key not configured",
-            "message": "Set MOONSHOT_API_KEY environment variable"
+            "message": "Set MOONSHOT_API_KEY and MOONSHOT_BASE_URL environment variables, or KIMI_CN_API_KEY / KIMI_API_KEY"
         })
 
     # Get system prompt - parameter takes precedence over config
@@ -205,7 +212,7 @@ def kimi_builtin_search(
     )
 
     try:
-        with _build_kimi_client(api_key) as client:
+        with _build_kimi_client(api_key, base_url) as client:
             result = _execute_search_loop(
                 client,
                 messages,
@@ -290,5 +297,4 @@ def get_builtin_search_registration(toolset: str = "plugin_hermoonshotes_web") -
             task_id=kw.get("task_id"),
         ),
         "check_fn": check_kimi_search_available,
-        "requires_env": ["MOONSHOT_API_KEY"],
     }

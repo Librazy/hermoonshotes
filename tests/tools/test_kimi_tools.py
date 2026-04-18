@@ -22,33 +22,34 @@ from tools.kimi_formula_tools import (
     kimi_code_runner_tool,
     FORMULAS,
 )
+from tools.kimi_api_config import DEFAULT_MOONSHOT_CN_URL, DEFAULT_MOONSHOT_AI_URL
 
 
 class TestKimiBuiltinSearch:
     """Test builtin $web_search functionality."""
-    
+
     def test_check_available_with_key(self):
         """Tool available when API key set."""
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
             assert check_kimi_search_available() is True
-    
+
     def test_check_available_without_key(self):
         """Tool unavailable when no API key."""
         with patch.dict(os.environ, {}, clear=True):
             assert check_kimi_search_available() is False
-    
+
     def test_resolve_api_key(self):
-        """Resolve API key from MOONSHOT_API_KEY."""
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-moonshot"}):
+        """Resolve API key from KIMI_CN_API_KEY."""
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-moonshot"}):
             assert _resolve_api_key() == "sk-moonshot"
-    
+
     def test_search_returns_error_without_key(self):
         """Search returns error JSON when no API key."""
         with patch.dict(os.environ, {}, clear=True):
             result = kimi_builtin_search("test query")
             data = json.loads(result)
             assert "error" in data
-            assert data.get("message") == "Set MOONSHOT_API_KEY environment variable"
+            assert "MOONSHOT_API_KEY" in data.get("message", "") or "KIMI_CN_API_KEY" in data.get("message", "")
 
     @patch("httpx.Client.post")
     def test_search_success_flow(self, mock_post):
@@ -92,7 +93,7 @@ class TestKimiBuiltinSearch:
             Mock(status_code=200, json=lambda: second_response)
         ]
         
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
             result = kimi_builtin_search("test query")
             assert result == "Search results here"
 
@@ -101,7 +102,7 @@ class TestKimiBuiltinSearch:
         """Test handling of HTTP errors."""
         mock_post.side_effect = Exception("Connection error")
         
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
             result = kimi_builtin_search("test query")
             data = json.loads(result)
             assert "error" in data
@@ -123,12 +124,12 @@ class TestKimiBuiltinSearch:
 
 class TestKimiFormulaTools:
     """Test formula tool functionality."""
-    
+
     def test_check_formula_tools_available_with_key(self):
         """Formula tools available when API key set."""
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
             assert check_formula_tools_available() is True
-    
+
     def test_check_formula_tools_available_without_key(self):
         """Formula tools unavailable when no API key."""
         with patch.dict(os.environ, {}, clear=True):
@@ -136,15 +137,15 @@ class TestKimiFormulaTools:
 
     def test_client_init(self):
         """Test client initialization."""
-        client = KimiFormulaClient("sk-test")
+        client = KimiFormulaClient("sk-test", DEFAULT_MOONSHOT_CN_URL)
         assert client.api_key == "sk-test"
         assert client.client is not None
         client.close()
 
     def test_client_get_tool_schema_success(self):
         """Test successful schema fetch."""
-        client = KimiFormulaClient("sk-test")
-        
+        client = KimiFormulaClient("sk-test", DEFAULT_MOONSHOT_CN_URL)
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -153,18 +154,18 @@ class TestKimiFormulaTools:
                 "function": {"name": "fetch", "description": "Fetch URL"}
             }]
         }
-        
+
         with patch.object(client.client, "get", return_value=mock_response):
             schema = client.get_tool_schema("moonshot/fetch:latest")
             assert schema is not None
             assert schema["function"]["name"] == "fetch"
-        
+
         client.close()
 
     def test_client_execute_tool_success(self):
         """Test successful formula execution."""
-        client = KimiFormulaClient("sk-test")
-        
+        client = KimiFormulaClient("sk-test", DEFAULT_MOONSHOT_CN_URL)
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -174,23 +175,23 @@ class TestKimiFormulaTools:
                 "output": "Fetched content"
             }
         }
-        
+
         with patch.object(client.client, "post", return_value=mock_response):
             result = client.execute_tool(
                 "moonshot/fetch:latest",
                 "fetch",
                 {"url": "https://example.com"}
             )
-            
+
             assert result["status"] == "success"
             assert result["result"] == "Fetched content"
-        
+
         client.close()
 
     def test_client_execute_tool_error(self):
         """Test formula execution with error response."""
-        client = KimiFormulaClient("sk-test")
-        
+        client = KimiFormulaClient("sk-test", DEFAULT_MOONSHOT_CN_URL)
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -200,23 +201,23 @@ class TestKimiFormulaTools:
                 "error": "Invalid URL"
             }
         }
-        
+
         with patch.object(client.client, "post", return_value=mock_response):
             result = client.execute_tool(
                 "moonshot/fetch:latest",
                 "fetch",
                 {"url": "invalid"}
             )
-            
+
             assert result["status"] == "error"
             assert "error" in result
-        
+
         client.close()
 
     def test_client_execute_tool_encrypted_output(self):
         """Test handling of encrypted output."""
-        client = KimiFormulaClient("sk-test")
-        
+        client = KimiFormulaClient("sk-test", DEFAULT_MOONSHOT_CN_URL)
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -226,17 +227,17 @@ class TestKimiFormulaTools:
                 "encrypted_output": "----MOONSHOT ENCRYPTED BEGIN----...----MOONSHOT ENCRYPTED END----"
             }
         }
-        
+
         with patch.object(client.client, "post", return_value=mock_response):
             result = client.execute_tool(
                 "moonshot/web-search:latest",
                 "web_search",
                 {"query": "test"}
             )
-            
+
             assert result["status"] == "success"
             assert "encrypted" in result["result"].lower() or "MOONSHOT" in result["result"]
-        
+
         client.close()
 
 
@@ -278,8 +279,8 @@ class TestKimiToolHandlers:
             "status": "success",
             "result": "# Example Domain\n\nThis domain is for use in examples."
         }
-        
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
+
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
             result = kimi_fetch_tool("https://example.com")
             data = json.loads(result)
             assert data["status"] == "success"
@@ -292,8 +293,8 @@ class TestKimiToolHandlers:
             "status": "success",
             "result": "328.084 feet"
         }
-        
-        with patch.dict(os.environ, {"MOONSHOT_API_KEY": "sk-test"}):
+
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
             result = kimi_convert_tool(100, "meters", "feet")
             data = json.loads(result)
             assert data["status"] == "success"
@@ -326,7 +327,7 @@ class TestIntegration:
     
     @pytest.mark.slow
     @pytest.mark.skipif(
-        not os.getenv("MOONSHOT_API_KEY"),
+        not os.getenv("KIMI_CN_API_KEY") and not os.getenv("KIMI_API_KEY") and not os.getenv("MOONSHOT_API_KEY"),
         reason="No API key available"
     )
     def test_live_builtin_search(self):
@@ -338,13 +339,13 @@ class TestIntegration:
 
     @pytest.mark.slow
     @pytest.mark.skipif(
-        not os.getenv("MOONSHOT_API_KEY"),
+        not os.getenv("KIMI_CN_API_KEY") and not os.getenv("KIMI_API_KEY") and not os.getenv("MOONSHOT_API_KEY"),
         reason="No API key available"
     )
     def test_live_fetch(self):
         """Test real fetch API call."""
         result = kimi_fetch_tool("https://example.com")
         data = json.loads(result)
-        
+
         assert "error" not in data
         assert data.get("status") == "success"

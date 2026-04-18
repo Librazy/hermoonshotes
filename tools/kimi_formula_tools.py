@@ -2,17 +2,15 @@
 
 import json
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
 import httpx
 
+from .kimi_api_config import resolve_api_config
 from .kimi_config import get_config
 from .kimi_transcript import save_tool_transcript
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_BASE_URL = "https://api.moonshot.cn/v1"
 
 # Formula registry
 FORMULAS = {
@@ -29,11 +27,11 @@ FORMULAS = {
 
 class KimiFormulaClient:
     """Client for Kimi Formula API."""
-    
-    def __init__(self, api_key: str, base_url: Optional[str] = None):
+
+    def __init__(self, api_key: str, base_url: str):
         self.api_key = api_key
         self.client = httpx.Client(
-            base_url=base_url or os.getenv("MOONSHOT_BASE_URL") or DEFAULT_BASE_URL,
+            base_url=base_url,
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=60.0
         )
@@ -104,15 +102,16 @@ class KimiFormulaClient:
 
 def check_formula_tools_available() -> bool:
     """Check if API key is configured."""
-    return bool(os.getenv("MOONSHOT_API_KEY"))
+    api_key, base_url, warning = resolve_api_config()
+    return api_key is not None and base_url is not None and warning is None
 
 
 def _get_client() -> Optional[KimiFormulaClient]:
     """Get configured client."""
-    api_key = os.getenv("MOONSHOT_API_KEY")
-    if not api_key:
+    api_key, base_url, warning = resolve_api_config()
+    if not api_key or not base_url or warning:
         return None
-    return KimiFormulaClient(api_key)
+    return KimiFormulaClient(api_key, base_url)
 
 
 def _run_formula_tool(
@@ -522,7 +521,6 @@ def get_formula_tool_registrations() -> List[Dict[str, Any]]:
                 "schema": schema_builder(prefixed_name),
                 "handler": handler,
                 "check_fn": check_formula_tools_available,
-                "requires_env": ["MOONSHOT_API_KEY"],
             }
         )
     return registrations
