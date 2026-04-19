@@ -85,7 +85,7 @@ def save_tool_transcript(
 
 
 class SearchTranscriptManager:
-    """Manages JSONL transcript for kimi_builtin_search with immediate append."""
+    """Manages JSONL transcript for kimi_formula_web_search with immediate append."""
 
     def __init__(
         self,

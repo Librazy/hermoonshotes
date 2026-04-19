@@ -13,7 +13,7 @@ Inspired by [OpenClaw's builtin Moonshot Plugin with Kimi `$web_search` support]
   - `detailed`: Structured markdown with sections and citations
   - `brief`: Concise answers with sources
   - `markdown`: Full markdown documents
-  - `structured`: JSON schema output
+  - `json`: JSON schema output
   - `academic`: APA-style citations
 - AI-synthesized answers with proper citations and sources
 - Configurable tool name prefix (default: `kimi_`)
@@ -169,7 +169,7 @@ export KIMI_TOOLS_SYSTEM_PROMPT_FILE="/path/to/custom-prompt.txt"
 **Supported format styles** (passed to `get_system_prompt(style)`):
 - `detailed` (default)
 - `brief`
-- `structured`
+- `json`
 - `markdown`
 - `academic`
 

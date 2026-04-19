@@ -6,13 +6,13 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 
 # Import the modules under test
-from tools.kimi_builtin_search import (
+from tools.kimi_formula_web_search import (
     check_kimi_search_available,
-    kimi_builtin_search,
+    kimi_formula_web_search,
     _resolve_api_key,
-    DEFAULT_SYSTEM_PROMPTS,
-    KIMI_BUILTIN_SEARCH_SCHEMA,
+    KIMI_FORMULA_WEB_SEARCH_SCHEMA,
 )
+from tools.kimi_config import DEFAULT_SYSTEM_PROMPTS
 from tools.kimi_formula_tools import (
     check_formula_tools_available,
     KimiFormulaClient,
@@ -25,8 +25,8 @@ from tools.kimi_formula_tools import (
 from tools.kimi_api_config import DEFAULT_MOONSHOT_CN_URL, DEFAULT_MOONSHOT_AI_URL
 
 
-class TestKimiBuiltinSearch:
-    """Test builtin $web_search functionality."""
+class TestKimiFormulaWebSearch:
+    """Test formula-based forced web_search functionality."""
 
     def test_check_available_with_key(self):
         """Tool available when API key set."""
@@ -46,32 +46,24 @@ class TestKimiBuiltinSearch:
     def test_search_returns_error_without_key(self):
         """Search returns error JSON when no API key."""
         with patch.dict(os.environ, {}, clear=True):
-            result = kimi_builtin_search("test query")
+            result = kimi_formula_web_search("test query")
             data = json.loads(result)
             assert "error" in data
             assert "MOONSHOT_API_KEY" in data.get("message", "") or "KIMI_CN_API_KEY" in data.get("message", "")
 
     @patch("httpx.Client.post")
     def test_search_success_flow(self, mock_post):
-        """Test successful search with tool call loop."""
-        # First response: tool call request
+        """Test successful search with formula + chat flow."""
+        # First response: formula web_search result
         first_response = {
-            "choices": [{
-                "finish_reason": "tool_calls",
-                "message": {
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "web_search:0",
-                        "function": {
-                            "name": "$web_search",
-                            "arguments": '{"query": "test"}'
-                        }
-                    }]
-                }
-            }]
+            "status": "succeeded",
+            "id": "fiber-123",
+            "context": {
+                "encrypted_output": "----MOONSHOT ENCRYPTED BEGIN----encrypted_search_result----MOONSHOT ENCRYPTED END----"
+            }
         }
-        
-        # Second response: final answer
+
+        # Second response: chat completion with formatted result
         second_response = {
             "choices": [{
                 "finish_reason": "stop",
@@ -79,31 +71,48 @@ class TestKimiBuiltinSearch:
                     "content": "Search results here"
                 }
             }],
-            "search_results": [
-                {"title": "Result 1", "url": "https://example.com"}
-            ],
             "usage": {
                 "prompt_tokens": 100,
                 "completion_tokens": 50
             }
         }
-        
+
         mock_post.side_effect = [
             Mock(status_code=200, json=lambda: first_response),
             Mock(status_code=200, json=lambda: second_response)
         ]
-        
+
         with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
-            result = kimi_builtin_search("test query")
+            result = kimi_formula_web_search("test query")
             assert result == "Search results here"
+
+    @patch("httpx.Client.post")
+    def test_search_formula_error(self, mock_post):
+        """Test handling of formula execution errors."""
+        # Formula returns error
+        error_response = {
+            "status": "failed",
+            "id": "fiber-456",
+            "context": {
+                "error": "Search service unavailable"
+            }
+        }
+
+        mock_post.return_value = Mock(status_code=200, json=lambda: error_response)
+
+        with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
+            result = kimi_formula_web_search("test query")
+            data = json.loads(result)
+            assert "error" in data
+            assert "Formula web_search failed" in data.get("error", "")
 
     @patch("httpx.Client.post")
     def test_search_http_error(self, mock_post):
         """Test handling of HTTP errors."""
         mock_post.side_effect = Exception("Connection error")
-        
+
         with patch.dict(os.environ, {"KIMI_CN_API_KEY": "sk-test"}):
-            result = kimi_builtin_search("test query")
+            result = kimi_formula_web_search("test query")
             data = json.loads(result)
             assert "error" in data
 
@@ -111,15 +120,15 @@ class TestKimiBuiltinSearch:
         """Test that default system prompts are defined."""
         assert "detailed" in DEFAULT_SYSTEM_PROMPTS
         assert "brief" in DEFAULT_SYSTEM_PROMPTS
-        assert "structured" in DEFAULT_SYSTEM_PROMPTS
+        assert "json" in DEFAULT_SYSTEM_PROMPTS
         assert "academic" in DEFAULT_SYSTEM_PROMPTS
 
     def test_schema_structure(self):
         """Test that schema has required fields."""
-        assert "name" in KIMI_BUILTIN_SEARCH_SCHEMA
-        assert "description" in KIMI_BUILTIN_SEARCH_SCHEMA
-        assert "parameters" in KIMI_BUILTIN_SEARCH_SCHEMA
-        assert KIMI_BUILTIN_SEARCH_SCHEMA["name"] == "kimi_web_search"
+        assert "name" in KIMI_FORMULA_WEB_SEARCH_SCHEMA
+        assert "description" in KIMI_FORMULA_WEB_SEARCH_SCHEMA
+        assert "parameters" in KIMI_FORMULA_WEB_SEARCH_SCHEMA
+        assert KIMI_FORMULA_WEB_SEARCH_SCHEMA["name"] == "kimi_web_search"
 
 
 class TestKimiFormulaTools:
@@ -330,9 +339,9 @@ class TestIntegration:
         not os.getenv("KIMI_CN_API_KEY") and not os.getenv("KIMI_API_KEY") and not os.getenv("MOONSHOT_API_KEY"),
         reason="No API key available"
     )
-    def test_live_builtin_search(self):
-        """Test real search API call."""
-        result = kimi_builtin_search("What is the capital of France?")
+    def test_live_formula_web_search(self):
+        """Test real formula web search API call."""
+        result = kimi_formula_web_search("What is the capital of France?")
 
         assert result
         assert "Paris" in result
