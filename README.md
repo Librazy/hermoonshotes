@@ -1,24 +1,25 @@
 # Hermes Agent Kimi (Moonshot) Plugin
 
-A Hermes Agent plugin providing advanced web search (Kimi's native [builtin `$web_search`](https://platform.kimi.com/docs/guide/use-web-search) integration) and official Moonshot Formula tools powered by Kimi/Moonshot AI.
+A Hermes Agent plugin providing advanced web search (via Moonshot Formula `web_search` tool) and official Moonshot Formula tools powered by Kimi/Moonshot AI.
 
 Inspired by [OpenClaw's builtin Moonshot Plugin with Kimi `$web_search` support](https://github.com/openclaw/openclaw/blob/main/extensions/moonshot/src/kimi-web-search-provider.ts)
 
 ## Features
 
-### Builtin Web Search (`$web_search`)
-- Native integration with Kimi's built-in web search tool
-- Multi-turn conversation handling for tool calling
+### Web Search (Formula Tool)
+- Formula-based forced tool call workflow for guaranteed search execution
+- Direct call to `moonshot/web-search:latest` formula endpoint
+- Multi-turn conversation handling with pre-populated search results
 - Customizable output formatting with multiple styles:
   - `detailed`: Structured markdown with sections and citations
   - `brief`: Concise answers with sources
   - `markdown`: Full markdown documents
-  - `json`: JSON schema output
+  - `json`: JSON schema output (enables `response_format: json_object`)
   - `academic`: APA-style citations
 - AI-synthesized answers with proper citations and sources
 - Configurable tool name prefix (default: `kimi_`)
 - Full system prompt override support (env var or file)
-- Transcript logging for debugging and auditing
+- Detailed JSONL transcript logging for debugging and auditing
 
 ### Formula Tools (Official Moonshot Formulas)
 - **`fetch`**: Fetch URL content and convert to clean markdown
@@ -30,6 +31,15 @@ Inspired by [OpenClaw's builtin Moonshot Plugin with Kimi `$web_search` support]
 - **`date`**: Advanced date/time calculations and formatting
 
 All tools include comprehensive error handling, input validation, and transcript logging.
+
+### API Debugging
+- **`api-debugger.sh`**: Shell script for debugging formula tool calls interactively
+
+  Usage:
+  ```bash
+  cd tools && ./api-debugger.sh
+  ```
+  Supports interactive testing of formula tools with customizable prompts and arguments.
 
 ## Installation
 
@@ -90,7 +100,7 @@ hermes plugins list
 
 ## Configuration
 
-This plugin require access to Moonshot API for chat and formula tools. Kimi Code API currently does not support the formula tools.
+This plugin requires access to Moonshot API for chat and formula tools. Kimi Code API currently does not support the formula tools.
 
 ### 1. API Key and Endpoint (Critical)
 
@@ -169,11 +179,11 @@ export KIMI_TOOLS_SYSTEM_PROMPT_FILE="/path/to/custom-prompt.txt"
 **Supported format styles** (passed to `get_system_prompt(style)`):
 - `detailed` (default)
 - `brief`
-- `json`
+- `json` (enables `response_format: json_object`)
 - `markdown`
 - `academic`
 
-These affect how Kimi formats the final search results.
+These affect how the agent formats the final search results. When `json` format is selected, JSON mode is automatically enabled for structured output.
 
 **Config File Support:**
 Create a JSON config:
@@ -315,5 +325,5 @@ python -m pytest tests/tools/test_kimi_api_config.py -q
 ## References
 
 - [Moonshot AI Platform](https://platform.moonshot.cn/)
-- [KIMK API Documentation](https://platform.kimi.com/docs/guide/use-official-tools/)
+- [KIMI API Documentation](https://platform.kimi.com/docs/guide/use-official-tools/)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent)
