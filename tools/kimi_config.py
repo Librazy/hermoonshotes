@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Default system prompts for different output formats
 DEFAULT_SYSTEM_PROMPTS = {
-    "detailed": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.
+    "detailed": """You are a search result formatting agent. Format the provided web search results as structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.
 
-```makrdown
+```markdown
 # [Search Result Title 1](url-of-search-result-1)
 
 > Summary of Search Result 1
@@ -35,53 +35,87 @@ DEFAULT_SYSTEM_PROMPTS = {
 * Detailed Search Result 2, paragraph 3
 ```""",
 
-    "brief": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a concise answer with sources, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.""",
+    "brief": """You are a search result formatting agent. Format the provided web search results as a concise answer with sources, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.""",
 
-    "markdown": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured markdown document with the search results and links, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.""",
+    "markdown": """You are a search result formatting agent. Format the provided web search results as a structured markdown document with links, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.""",
 
-    "structured": """You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured json strictly following the json schema, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.
----
+    # The kimi API don't support `response_format: {type: "json_schema"}` yet, so we use `json_object` and specify the schema in the system prompt instead.
+    "json": """You are a search result formatting agent. Format the provided web search results as JSON strictly valid against the schema below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.
+
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "array",
-  "description": "List of search results",
-  "items": {
-    "type": "object",
-    "description": "Single search result item",
-    "properties": {
-      "index": {
-        "type": "integer",
-        "description": "Index number of the search result",
-        "minimum": 0
-      },
-      "url": {
-        "type": "string",
-        "format": "uri",
-        "description": "URL of the search result"
-      },
-      "title": {
-        "type": "string",
-        "description": "Title of the search result"
-      },
-      "content": {
-        "type": "array",
-        "description": "Detailed content text of the search result",
-        "items": {
-          "type": "string",
-          "description": "Content text fragment"
+  "type": "object",
+  "properties": {
+    "results": {
+      "type": "array",
+      "description": "List of search results",
+      "items": {
+        "type": "object",
+        "description": "Single search result item",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Index number of the search result",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL of the search result"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the search result"
+          },
+          "content": {
+            "type": "array",
+            "description": "Detailed content text of the search result",
+            "items": {
+              "type": "string",
+              "description": "Content text fragment"
+            },
+            "minItems": 0
+          }
         },
-        "minItems": 0
+        "required": [
+          "index",
+          "url",
+          "title",
+          "content"
+        ],
+        "additionalProperties": false
       }
+    }
+  },
+  "required": [
+    "results"
+  ]
+}
+```
+
+For example:
+```json
+{
+  "results": [
+    {
+      "index": 0,
+      "url": "https://www.example.com",
+      "title": "Example Title",
+      "content": ["Example Content"]
     },
-    "required": ["index", "url", "title", "content"],
-    "additionalProperties": false
-  }
+    {
+      "index": 1,
+      "url": "https://www.foo.com",
+      "title": "Foo Title",
+      "content": ["Example Content Bar", "Example Content Baz"]
+    }
+  ]
 }
 ```
 """,
 
-    "academic": """You are a `$web_search` tool agent. Provide an academic answer with APA citations, and DO NOT ADD YOUR OWN OPINION OR THOUGHTS.""",
+    "academic": """You are a search result formatting agent. Format the provided web search results as an academic answer with APA citations, and DO NOT ADD YOUR OWN OPINION OR THOUGHTS.""",
 }
 
 
@@ -202,7 +236,7 @@ class KimiToolsConfig:
         
         return prefix + name
     
-    def get_system_prompt(self, format_style: str = "structured") -> str:
+    def get_system_prompt(self, format_style: str = "json") -> str:
         """Get system prompt for search.
         
         Priority (highest to lowest):
@@ -213,7 +247,7 @@ class KimiToolsConfig:
         5. Default prompts
         
         Args:
-            format_style: Output format style (detailed, brief, markdown, structured, academic)
+            format_style: Output format style (detailed, brief, markdown, json, academic)
 
         Returns:
             System prompt string
@@ -268,7 +302,7 @@ class KimiToolsConfig:
         if format_style in DEFAULT_SYSTEM_PROMPTS:
             return DEFAULT_SYSTEM_PROMPTS[format_style]
         
-        return DEFAULT_SYSTEM_PROMPTS["structured"]
+        return DEFAULT_SYSTEM_PROMPTS["json"]
     
     def get_available_format_styles(self) -> List[str]:
         """Get list of available format styles.

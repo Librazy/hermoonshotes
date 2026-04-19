@@ -83,7 +83,7 @@ class TestSystemPrompt:
         """Test that default system prompts are defined."""
         assert "detailed" in DEFAULT_SYSTEM_PROMPTS
         assert "brief" in DEFAULT_SYSTEM_PROMPTS
-        assert "structured" in DEFAULT_SYSTEM_PROMPTS
+        assert "json" in DEFAULT_SYSTEM_PROMPTS
         assert "academic" in DEFAULT_SYSTEM_PROMPTS
         assert "markdown" in DEFAULT_SYSTEM_PROMPTS
     
@@ -91,8 +91,8 @@ class TestSystemPrompt:
         """Test getting default system prompt."""
         config = KimiToolsConfig()
         with patch.dict(os.environ, {}, clear=True):
-            prompt = config.get_system_prompt("structured")
-            assert prompt == DEFAULT_SYSTEM_PROMPTS["structured"]
+            prompt = config.get_system_prompt("json")
+            assert prompt == DEFAULT_SYSTEM_PROMPTS["json"]
     
     def test_get_system_prompt_from_env(self):
         """Test getting system prompt from environment variable."""
@@ -258,5 +258,5 @@ class TestFormatStyles:
         
         assert "detailed" in styles
         assert "brief" in styles
-        assert "structured" in styles
+        assert "json" in styles
         assert "academic" in styles
