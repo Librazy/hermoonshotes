@@ -1,24 +1,25 @@
 # Hermes Agent Kimi (Moonshot) Plugin
 
-A Hermes Agent plugin providing advanced web search (Kimi's native [builtin `$web_search`](https://platform.kimi.com/docs/guide/use-web-search) integration) and official Moonshot Formula tools powered by Kimi/Moonshot AI.
+A Hermes Agent plugin providing advanced web search (via Moonshot Formula `web_search` tool) and official Moonshot Formula tools powered by Kimi/Moonshot AI.
 
 Inspired by [OpenClaw's builtin Moonshot Plugin with Kimi `$web_search` support](https://github.com/openclaw/openclaw/blob/main/extensions/moonshot/src/kimi-web-search-provider.ts)
 
 ## Features
 
-### Builtin Web Search (`$web_search`)
-- Native integration with Kimi's built-in web search tool
-- Multi-turn conversation handling for tool calling
+### Web Search (Formula Tool)
+- Formula-based forced tool call workflow for guaranteed search execution
+- Direct call to `moonshot/web-search:latest` formula endpoint
+- Multi-turn conversation handling with pre-populated search results
 - Customizable output formatting with multiple styles:
   - `detailed`: Structured markdown with sections and citations
   - `brief`: Concise answers with sources
   - `markdown`: Full markdown documents
-  - `json`: JSON schema output
+  - `json`: JSON schema output (enables `response_format: json_object`)
   - `academic`: APA-style citations
 - AI-synthesized answers with proper citations and sources
 - Configurable tool name prefix (default: `kimi_`)
 - Full system prompt override support (env var or file)
-- Transcript logging for debugging and auditing
+- Detailed JSONL transcript logging for debugging and auditing
 
 ### Formula Tools (Official Moonshot Formulas)
 - **`fetch`**: Fetch URL content and convert to clean markdown
@@ -30,6 +31,15 @@ Inspired by [OpenClaw's builtin Moonshot Plugin with Kimi `$web_search` support]
 - **`date`**: Advanced date/time calculations and formatting
 
 All tools include comprehensive error handling, input validation, and transcript logging.
+
+### API Debugging
+- **`api-debugger.sh`**: Shell script for debugging formula tool calls interactively
+
+  Usage:
+  ```bash
+  cd tools && ./api-debugger.sh
+  ```
+  Supports interactive testing of formula tools with customizable prompts and arguments.
 
 ## Installation
 
@@ -90,7 +100,7 @@ hermes plugins list
 
 ## Configuration
 
-This plugin require access to Moonshot API for chat and formula tools. Kimi Code API currently does not support the formula tools.
+This plugin requires access to Moonshot API for chat and formula tools. Kimi Code API currently does not support the formula tools.
 
 ### 1. API Key and Endpoint (Critical)
 
@@ -169,11 +179,11 @@ export KIMI_TOOLS_SYSTEM_PROMPT_FILE="/path/to/custom-prompt.txt"
 **Supported format styles** (passed to `get_system_prompt(style)`):
 - `detailed` (default)
 - `brief`
-- `json`
+- `json` (enables `response_format: json_object`)
 - `markdown`
 - `academic`
 
-These affect how Kimi formats the final search results.
+These affect how the agent formats the final search results. When `json` format is selected, JSON mode is automatically enabled for structured output.
 
 **Config File Support:**
 Create a JSON config:
@@ -241,11 +251,12 @@ ize this information into a clear and concise summary for the user.
 <summary>Example of web_search transcripts (excerpted)</summary>
 
 ```web_search.jsonl
-{"registered_name": "kimi_web_search", "session_id": "67263e8c-b339-4005-a0d5-7b40c9445b7f", "task_id": "20260418_223001_b7ad0b", "timestamp": "2026-04-18T14:30:24.777070+00:00", "tool_args": {"format_style": "detailed", "model": "kimi-k2.5", "query": "kimi k2.6 code preview user review", "system_prompt": "You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.\n\n```makrdown\n# [Search Result Title 1](url-of-search-result-1)\n\n> Summary of Search Result 1\n\n* Detailed Search Result 1, paragraph 1\n* Detailed Search Result 1, paragraph 2\n\n---\n\n# [<Search Result Title 2>](url-of-search-result-2)\n\n> Summary of Search Result 2\n\n* Detailed Search Result 2, paragraph 1\n* Detailed Search Result 2, paragraph 2\n* Detailed Search Result 2, paragraph 3\n```"}, "tool_name": "web_search", "type": "metadata"}
-{"messages": [{"content": "You are a tool call agent to perform `$web_search` toolcall using the given user message. Output a structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.\n\n```makrdown\n# [Search Result Title 1](url-of-search-result-1)\n\n> Summary of Search Result 1\n\n* Detailed Search Result 1, paragraph 1\n* Detailed Search Result 1, paragraph 2\n\n---\n\n# [<Search Result Title 2>](url-of-search-result-2)\n\n> Summary of Search Result 2\n\n* Detailed Search Result 2, paragraph 1\n* Detailed Search Result 2, paragraph 2\n* Detailed Search Result 2, paragraph 3\n```", "role": "system"}, {"content": "kimi k2.6 code preview user review", "role": "user"}], "round": 1, "timestamp": "2026-04-18T14:30:24.777471+00:00", "type": "request"}
-{"response": {"choices": [{"finish_reason": "tool_calls", "index": 0, "message": {"content": "", "role": "assistant", "tool_calls": [{"function": {"arguments": "{\"search_result\":{\"search_id\":\"e4b4d48269e395874f50a5000170f68f\"},\"usage\":{\"total_tokens\":7946}}", "name": "$web_search"}, "id": "t-web_search-69e395879d68", "type": "builtin_function"}]}}], "created": 1776522631, "id": "chatcmpl-69e395879d681300011c987c", "model": "kimi-k2.5", "object": "chat.completion", "usage": {"completion_tokens": 1, "prompt_tokens": 178, "total_tokens": 179}}, "round": 1, "timestamp": "2026-04-18T14:30:31.304201+00:00", "type": "response"}
-{"messages": [{"content": "", "role": "assistant", "tool_calls": [{"function": {"arguments": "{\"search_result\":{\"search_id\":\"e4b4d48269e395874f50a5000170f68f\"},\"usage\":{\"total_tokens\":7946}}", "name": "$web_search"}, "id": "t-web_search-69e395879d68", "type": "builtin_function"}]}, {"content": "{\"search_result\":{\"search_id\":\"e4b4d48269e395874f50a5000170f68f\"},\"usage\":{\"total_tokens\":7946}}", "role": "tool", "tool_call_id": "t-web_search-69e395879d68"}], "round": 2, "timestamp": "2026-04-18T14:30:31.304382+00:00", "type": "request"}
-{"response": {"choices": [{"finish_reason": "stop", "index": 0, "message": {"content": "# [Kimi K2.6 Code Preview 正式发布：万亿参数编程大模型上线](https://www.yumiok.com/archives/6077.html)\n\n> 月之暗面于2026年4月14日正式发布Kimi K2.6-code-preview，这是专为编程场景优化的万亿参数大模型。相比上一代K2.5，该模型在推理深度、代理规划质量以及多步工具调用可靠性上均有显著提升，独立评测显示编程能力评分达到89分，已达到Sonnet 4.6水平。\n\n* **性能提升**：K2.6-code-preview基于K2.5万亿参数架构，通过高质量代码数据微调和编程任务强化学习机制实现升级。在开发者Versun的独立评测中，模型得分从K2.5的83分提升至89分，提升6分。\n* **技术改进**：引入多步代理规划能力，模型可自主决策调用终端、代码搜索引擎等外部工具；对推理深度进行专项优化，思维链展现出接近顶级模型的风格。\n* **用户反馈**：从实际使用反馈来看，用户对K2.6-code-preview的评价普遍积极，指令遵循能力表现稳定，代码生成质量有明显提升。有开发者表示配合Kimi Coding Plan套餐使用，提供了强大且性价比突出的选择。\n* **定价策略**：体验该模型需订阅Kimi会员计划（Code Plan），起步价39元/月，相比海外竞品定价务实。\n\n---\n\n# [Kimi K2.6-code-preview 低調發布：萬億參數編程大模型實測達 Sonnet 4.6 水平](https://www.techritual.com/2026/04/14/507442/)\n\n> 月之暗面Kimi K2.6-code-preview低調發布，這是一款專為AI編程優化的萬億參數大模型。體驗此模型需Kimi會員帳戶，每日起價39元人民幣。從網絡測試反饋來看，此模型基於K2.5萬億參數基礎改進，主要優化聚焦AI編程。\n\n* **發布方式**：K2.6-code-preview低調發布，先前測試未大肆宣傳，這兩天才見相關討論。Kimi官方亦未大力宣傳，目前官網尚未見明顯升級標示。\n* **性能規格**：K2.5在SWE-Bench Verified榜單評分為76.8%，LiveCodeBench達85%；K2.6-code-preview在Versun自測中得分89分，比K2.5的83分提升6分。\n* **實測水平**：大V Versun評測顯示，K2.6-code-preview被網友評為Sonnet 4.6水準，已屬強勁。提升方向涵蓋推理深度、代理規劃質量及多步工具調用可靠性，有測試者指其思維鏈有Opus風格。\n* **用戶反饋**：已上線用戶反饋正面，指指令遵循能力行，表現不俗。搭配Kimi Coding Plan套餐，至少為AI編程提供強大且性價比高的選擇。\n\n---\n\n......", "role": "assistant"}}], "created": 1776522632, "id": "chatcmpl-69e3958768e1808dabfa692d", "model": "kimi-k2.5", "object": "chat.completion", "usage": {"completion_tokens": 1971, "prompt_tokens": 8182, "total_tokens": 10153}}, "round": 2, "timestamp": "2026-04-18T14:30:46.955420+00:00", "type": "response"}
+{"registered_name": "kimi_web_search", "session_id": "5dca2c76-17e1-4aff-8af8-01518db58b92", "task_id": "20260420_014017_43213d", "timestamp": "2026-04-19T17:40:24.542618+00:00", "tool_args": {"format_style": "detailed", "model": "kimi-k2.5", "query": "kimi k2.6-code-preview", "system_prompt": "You are a search result formatting agent. Format the provided web search results as structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.\n\n```markdown\n# [Search Result Title 1](url-of-search-result-1)\n\n> Summary of Search Result 1\n\n* Detailed Search Result 1, paragraph 1\n* Detailed Search Result 1, paragraph 2\n\n---\n\n# [<Search Result Title 2>](url-of-search-result-2)\n\n> Summary of Search Result 2\n\n* Detailed Search Result 2, paragraph 1\n* Detailed Search Result 2, paragraph 2\n* Detailed Search Result 2, paragraph 3\n```"}, "tool_name": "web_search", "type": "metadata"}
+{"formula_uri": "moonshot/web-search:latest", "payload": {"arguments": "{\"query\": \"kimi k2.6-code-preview\"}", "name": "web_search"}, "timestamp": "2026-04-19T17:40:24.542957+00:00", "type": "formula_request"}
+{"response": {"access_token_id": "ak-deadbeef", "context": {"encrypted_output": "----MOONSHOT ENCRYPTED BEGIN----jtMnIdZdeh8tafe3HEle15GtcDzDylElrLqVoS----MOONSHOT ENCRYPTED END----", "input": "{\"name\":\"web_search\",\"arguments\":\"{\\\"query\\\": \\\"kimi k2.6-code-preview\\\"}\"}", "references": {"tool_call": {"function": {"arguments": "{\"query\": \"kimi k2.6-code-preview\"}", "name": "web_search"}, "type": "function"}}}, "created_at": 1776620424, "formula": "moonshot/web-search:latest", "id": "fiber-deadbeef", "lambda_id": "lambda-deadbeef", "object": "fiber", "organization_id": "org-deadbeef", "project_id": "proj-deadbeef", "status": "succeeded"}, "timestamp": "2026-04-19T17:40:29.998744+00:00", "type": "formula_response"}
+{"payload": {"messages": [{"content": "You are a search result formatting agent. Format the provided web search results as structured markdown strictly following the syntax below, and DO NOT ADD YOUR OWN DESCRIPTION, OPINION OR THOUGHTS.\n\n```markdown\n# [Search Result Title 1](url-of-search-result-1)\n\n> Summary of Search Result 1\n\n* Detailed Search Result 1, paragraph 1\n* Detailed Search Result 1, paragraph 2\n\n---\n\n# [<Search Result Title 2>](url-of-search-result-2)\n\n> Summary of Search Result 2\n\n* Detailed Search Result 2, paragraph 1\n* Detailed Search Result 2, paragraph 2\n* Detailed Search Result 2, paragraph 3\n```", "role": "system"}, {"content": "kimi k2.6-code-preview", "role": "user"}, {"content": "", "role": "assistant", "tool_calls": [{"function": {"arguments": "{\"query\": \"kimi k2.6-code-preview\", \"classes\": [\"all\"]}", "name": "web_search"}, "id": "web_search:0", "type": "function"}]}, {"content": "----MOONSHOT ENCRYPTED BEGIN----jtMnIdZdeh8tafe3HEle15GtcDzDylElrLqVoS----MOONSHOT ENCRYPTED END----", "role": "tool", "tool_call_id": "web_search:0"}], "model": "kimi-k2.5", "thinking": {"type": "disabled"}, "tools": [{"function": {"description": "用于信息检索的网络搜索", "name": "web_search", "parameters": {"properties": {"classes": {"description": "要关注的搜索领域。如果未指定，则默认为 'all'。", "items": {"enum": ["all", "academic", "social", "library", "finance", "code", "ecommerce", "medical"], "type": "string"}, "type": "array"}, "query": {"description": "要搜索的内容", "type": "string"}}, "required": ["query"], "type": "object"}}, "type": "function"}]}, "timestamp": "2026-04-19T17:40:29.999002+00:00", "type": "chat_request"}
+{"response": {"choices": [{"finish_reason": "stop", "index": 0, "message": {"content": "```markdown\n# [Kimi K2.6 Code Preview Benchmark Results, Specs & Pricing](https://www.datalearner.com/en/ai-models/pretrained-models/kimi-k2.6-code-preview)\n\n> Kimi K2.6 Code Preview是月之暗面（Moonshot AI）在Kimi K2系列基础上推出的下一代代码与智能体（Agent）模型，目前处于内测阶段，尚未正式发布。该模型采用混合专家（MoE）架构，总参数量为1万亿（1T），激活参数量为320亿（32B），上下文长度为256K tokens。\n\n* 2026年4月13日，月之暗面通过官方邮件首次确认Beta测试者所使用的模型为K2.6-code-preview，并表示团队正在根据测试反馈进行最终调整，该模型即将面向所有用户开放。\n* Kimi K2系列采用MoE架构，包含384个专家，每个token激活8个专家，系列模型知识截止时间为2025年4月。\n* Kimi K2.5于2026年1月底发布，在原K2基础上加强了多模态能力，并推出了多智能体集群（Agent Swarm）功能，K2.5在SWE-bench Verified基准测试中取得76.8%的得分。\n* K2系列在15.5万亿token上进行训练，团队设计了MuonClip优化器以解决MoE架构训练中常见的注意力爆炸与损失尖峰问题。\n\n---\n\n# [Kimi K2.6-code-preview即将上线：月之暗面编程模型小幅升级预览](https://unifuncs.com/s/XrojHS6o)\n\n> 月之暗面旗下AI编程工具Kimi Code向Beta测试者发送邮件，宣布抢先体验计划本期已结束，并首次确认测试者使用的模型为K2.6-code-preview。\n\n* 根据社区讨论，K2.6-code-preview在测试期间展现出推理深度提升的特征，相较于K2.5，逻辑推理能力有可感知的增强。\n* Agent规划能力得到优化，工具调用与任务拆解更加精准。\n* 此前Beta测试者已注意到内测模型性能较K2.5有明显提升，尤其在推理深度和Agent规划能力方面，但在控制台中仍显示为K2.5。\n```", "role": "assistant"}}], "created": 1776620430, "id": "chatcmpl-deadbeef", "model": "kimi-k2.5", "object": "chat.completion", "usage": {"cached_tokens": 256, "completion_tokens": 476, "prompt_tokens": 1501, "prompt_tokens_details": {"cached_tokens": 256}, "total_tokens": 1977}}, "timestamp": "2026-04-19T17:40:42.423888+00:00", "type": "chat_response"}
+
 ```
 
 </details>
@@ -267,7 +278,7 @@ ize this information into a clear and concise summary for the user.
     "formula_uri": "moonshot/base64:latest"
   },
   "response": {
-    "fiber_id": "fiber-f9joui8sm8pi159nayg1",
+    "fiber_id": "fiber-deadbeef",
     "result": "6Zi/6YeM5Y2D6Zeu5byA5rqQIFF3ZW4zLjYtMzVCLUEzQu+8mjM1MOS6v+aAu+WPguaVsOS7hea/gOa0uzMw5Lq/77yM5Li75omT5pm66IO95L2T57yW56iL6IO95Yqb",
     "status": "success"
   },
@@ -315,5 +326,5 @@ python -m pytest tests/tools/test_kimi_api_config.py -q
 ## References
 
 - [Moonshot AI Platform](https://platform.moonshot.cn/)
-- [KIMK API Documentation](https://platform.kimi.com/docs/guide/use-official-tools/)
+- [KIMI API Documentation](https://platform.kimi.com/docs/guide/use-official-tools/)
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent)
